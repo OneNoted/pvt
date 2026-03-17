@@ -3,8 +3,8 @@ package rules_test
 import (
 	"testing"
 
-	"github.com/mirceanton/pvt/internal/proxmox"
-	"github.com/mirceanton/pvt/internal/rules"
+	"github.com/OneNoted/pvt/internal/proxmox"
+	"github.com/OneNoted/pvt/internal/rules"
 )
 
 // validVM returns a VM config that passes all rules.

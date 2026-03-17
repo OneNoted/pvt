@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mirceanton/pvt/internal/proxmox"
+	"github.com/OneNoted/pvt/internal/proxmox"
 )
 
 // CPUTypeRule checks that the VM uses cpu type "host".

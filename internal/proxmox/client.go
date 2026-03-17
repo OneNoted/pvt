@@ -8,7 +8,7 @@ import (
 
 	pxapi "github.com/luthermonson/go-proxmox"
 
-	"github.com/mirceanton/pvt/internal/config"
+	"github.com/OneNoted/pvt/internal/config"
 )
 
 // Client wraps the Proxmox VE API client with pvt-specific operations.

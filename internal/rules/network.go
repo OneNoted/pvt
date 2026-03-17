@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mirceanton/pvt/internal/proxmox"
+	"github.com/OneNoted/pvt/internal/proxmox"
 )
 
 // NetworkModelRule checks that network interfaces use the virtio model.

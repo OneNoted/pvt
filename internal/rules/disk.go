@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mirceanton/pvt/internal/proxmox"
+	"github.com/OneNoted/pvt/internal/proxmox"
 )
 
 // SCSIHWRule checks that the SCSI hardware controller is virtio-scsi-pci.

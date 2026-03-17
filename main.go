@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/mirceanton/pvt/cmd"
+	"github.com/OneNoted/pvt/cmd"
 )
 
 func main() {

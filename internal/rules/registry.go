@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/mirceanton/pvt/internal/proxmox"
+	"github.com/OneNoted/pvt/internal/proxmox"
 )
 
 // Severity indicates how critical a validation finding is.

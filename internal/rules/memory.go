@@ -3,7 +3,7 @@ package rules
 import (
 	"fmt"
 
-	"github.com/mirceanton/pvt/internal/proxmox"
+	"github.com/OneNoted/pvt/internal/proxmox"
 )
 
 // MemoryMinRule checks that the VM has at least a minimum amount of memory.
