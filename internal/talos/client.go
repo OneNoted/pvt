@@ -3,9 +3,23 @@ package talos
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
 	talosclient "github.com/siderolabs/talos/pkg/machinery/client"
 )
+
+// expandPath resolves ~ to the user's home directory.
+func expandPath(path string) string {
+	if strings.HasPrefix(path, "~/") {
+		home, err := os.UserHomeDir()
+		if err == nil {
+			return filepath.Join(home, path[2:])
+		}
+	}
+	return path
+}
 
 // Client wraps the Talos API client with pvt-specific operations.
 type Client struct {
@@ -18,7 +32,7 @@ func NewClient(ctx context.Context, configPath string, contextName string, endpo
 	var opts []talosclient.OptionFunc
 
 	if configPath != "" {
-		opts = append(opts, talosclient.WithConfigFromFile(configPath))
+		opts = append(opts, talosclient.WithConfigFromFile(expandPath(configPath)))
 	} else {
 		opts = append(opts, talosclient.WithDefaultConfig())
 	}

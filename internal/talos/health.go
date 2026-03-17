@@ -12,7 +12,8 @@ import (
 
 // NodeVersion holds Talos and Kubernetes version info for a node.
 type NodeVersion struct {
-	Node       string
+	Node         string // hostname from metadata (often the IP)
+	Endpoint     string // the raw metadata hostname (IP or name)
 	TalosVersion string
 	K8sVersion   string
 	Arch         string
@@ -39,14 +40,12 @@ func (c *Client) Version(ctx context.Context, nodes ...string) ([]NodeVersion, e
 	var versions []NodeVersion
 	for _, msg := range resp.Messages {
 		nv := NodeVersion{
-			Node: msg.Metadata.GetHostname(),
+			Node:     msg.Metadata.GetHostname(),
+			Endpoint: msg.Metadata.GetHostname(),
 		}
 		if msg.Version != nil {
 			nv.TalosVersion = msg.Version.Tag
 			nv.Arch = msg.Version.Arch
-		}
-		if msg.Platform != nil {
-			// K8s version reported here when available
 		}
 		versions = append(versions, nv)
 	}

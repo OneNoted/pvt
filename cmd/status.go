@@ -84,12 +84,13 @@ func runStatusSummary(cmd *cobra.Command, args []string) error {
 func printNodeTable(ctx context.Context, tc *talos.Client, cluster config.ClusterConfig, allNodes []string) {
 	tbl := ui.NewTable("Name", "Role", "IP", "PVE Node", "VMID", "Talos Version", "Status")
 
-	// Try to get versions for all nodes
+	// Try to get versions for all nodes — index by both hostname and IP
 	versions, vErr := tc.Version(ctx, allNodes...)
 	versionMap := make(map[string]string)
 	if vErr == nil {
 		for _, v := range versions {
 			versionMap[v.Node] = v.TalosVersion
+			versionMap[v.Endpoint] = v.TalosVersion
 		}
 	}
 
@@ -98,6 +99,9 @@ func printNodeTable(ctx context.Context, tc *talos.Client, cluster config.Cluste
 		status := "unreachable"
 
 		if v, ok := versionMap[node.Name]; ok {
+			ver = v
+			status = "ready"
+		} else if v, ok := versionMap[node.IP]; ok {
 			ver = v
 			status = "ready"
 		}

@@ -19,9 +19,12 @@ func Load(path string) (*Config, error) {
 }
 
 // Parse parses raw YAML bytes into a Config.
+// Environment variables in ${VAR} format are expanded before parsing.
 func Parse(data []byte) (*Config, error) {
+	expanded := os.ExpandEnv(string(data))
+
 	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	if err := yaml.Unmarshal([]byte(expanded), &cfg); err != nil {
 		return nil, fmt.Errorf("parsing config: %w", err)
 	}
 
