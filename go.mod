@@ -3,9 +3,16 @@ module github.com/mirceanton/pvt
 go 1.26.1
 
 require (
+	github.com/buger/goterm v1.0.4 // indirect
+	github.com/diskfs/go-diskfs v1.7.0 // indirect
+	github.com/djherbis/times v1.6.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
+	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/jinzhu/copier v0.3.4 // indirect
+	github.com/luthermonson/go-proxmox v0.4.0 // indirect
+	github.com/magefile/mage v1.14.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/sagikazarmark/locafero v0.11.0 // indirect
 	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
