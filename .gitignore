@@ -1,0 +1,16 @@
+# Binaries
+pvt
+*.exe
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+
+# Config with secrets
+pvt.yaml
