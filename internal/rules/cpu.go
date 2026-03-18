@@ -11,7 +11,7 @@ import (
 // kvm64 (the default) lacks x86-64-v2 extensions required by Talos.
 type CPUTypeRule struct{}
 
-func (r *CPUTypeRule) Name() string             { return "cpu-type" }
+func (r *CPUTypeRule) Name() string              { return "cpu-type" }
 func (r *CPUTypeRule) Description() string       { return "CPU type must be 'host' (kvm64 lacks x86-64-v2)" }
 func (r *CPUTypeRule) DefaultSeverity() Severity { return SeverityError }
 

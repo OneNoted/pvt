@@ -10,7 +10,7 @@ import (
 // NetworkModelRule checks that network interfaces use the virtio model.
 type NetworkModelRule struct{}
 
-func (r *NetworkModelRule) Name() string             { return "network-model" }
+func (r *NetworkModelRule) Name() string              { return "network-model" }
 func (r *NetworkModelRule) Description() string       { return "Network interfaces should use virtio model" }
 func (r *NetworkModelRule) DefaultSeverity() Severity { return SeverityWarn }
 
@@ -60,7 +60,7 @@ func replaceNetModel(netCfg string, newModel string) string {
 // QEMUAgentRule checks that the QEMU guest agent is enabled.
 type QEMUAgentRule struct{}
 
-func (r *QEMUAgentRule) Name() string             { return "qemu-agent" }
+func (r *QEMUAgentRule) Name() string              { return "qemu-agent" }
 func (r *QEMUAgentRule) Description() string       { return "QEMU guest agent should be enabled" }
 func (r *QEMUAgentRule) DefaultSeverity() Severity { return SeverityWarn }
 
@@ -84,8 +84,10 @@ func (r *QEMUAgentRule) Check(vm *proxmox.VMConfig) []Finding {
 // MachineTypeRule checks that the VM uses q35 machine type.
 type MachineTypeRule struct{}
 
-func (r *MachineTypeRule) Name() string             { return "machine-type" }
-func (r *MachineTypeRule) Description() string       { return "q35 machine type recommended for modern feature support" }
+func (r *MachineTypeRule) Name() string { return "machine-type" }
+func (r *MachineTypeRule) Description() string {
+	return "q35 machine type recommended for modern feature support"
+}
 func (r *MachineTypeRule) DefaultSeverity() Severity { return SeverityInfo }
 
 func (r *MachineTypeRule) Check(vm *proxmox.VMConfig) []Finding {
@@ -113,8 +115,10 @@ func (r *MachineTypeRule) Check(vm *proxmox.VMConfig) []Finding {
 // SerialConsoleRule checks that a serial console is configured for boot debugging.
 type SerialConsoleRule struct{}
 
-func (r *SerialConsoleRule) Name() string             { return "serial-console" }
-func (r *SerialConsoleRule) Description() string       { return "Serial console recommended for boot debugging" }
+func (r *SerialConsoleRule) Name() string { return "serial-console" }
+func (r *SerialConsoleRule) Description() string {
+	return "Serial console recommended for boot debugging"
+}
 func (r *SerialConsoleRule) DefaultSeverity() Severity { return SeverityInfo }
 
 func (r *SerialConsoleRule) Check(vm *proxmox.VMConfig) []Finding {

@@ -11,7 +11,7 @@ import (
 // virtio-scsi-single causes issues with Talos disk detection.
 type SCSIHWRule struct{}
 
-func (r *SCSIHWRule) Name() string             { return "scsihw" }
+func (r *SCSIHWRule) Name() string              { return "scsihw" }
 func (r *SCSIHWRule) Description() string       { return "SCSI HW must be 'virtio-scsi-pci'" }
 func (r *SCSIHWRule) DefaultSeverity() Severity { return SeverityError }
 
