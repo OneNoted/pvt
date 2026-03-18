@@ -29,7 +29,34 @@ pvt config validate        # validate config syntax
 pvt status summary         # per-node cluster overview
 pvt validate vms           # pre-flight VM checks
 pvt validate vm <name>     # check a single VM
+pvt bootstrap              # apply machine configs + bootstrap etcd
+pvt upgrade --image <img>  # rolling Talos upgrade across all nodes
 ```
+
+### Bootstrap
+
+Applies Talos machine configs and bootstraps etcd for a new cluster. Nodes must already be booted with the Talos ISO in maintenance mode.
+
+```bash
+pvt bootstrap                    # bootstrap the configured cluster
+pvt bootstrap my-cluster         # target a specific cluster
+pvt bootstrap --dry-run          # preview the plan without executing
+```
+
+Machine configs are resolved from the `config_source` setting — either a directory of `<node-name>.yaml` files or talhelper's `clusterconfig/` output.
+
+### Rolling Upgrades
+
+Upgrades Talos on all nodes one at a time: workers first, then control plane nodes with the etcd leader last.
+
+```bash
+pvt upgrade --image ghcr.io/siderolabs/installer:v1.12.5
+pvt upgrade --image <img> --dry-run    # preview upgrade plan
+pvt upgrade --image <img> --stage      # stage upgrade, reboot later
+pvt upgrade --image <img> --force      # skip pre-flight health check
+```
+
+Respects `upgrade` settings from the config: `etcd_backup_before`, `health_check_timeout`, `pause_between_nodes`.
 
 ## Configuration
 
@@ -81,8 +108,8 @@ Findings include the corresponding `qm set` fix command.
 
 - [x] Pre-flight VM validation
 - [x] Cluster status overview
-- [ ] Bootstrap orchestration
-- [ ] Rolling upgrades
+- [x] Bootstrap orchestration
+- [x] Rolling upgrades
 - [ ] Node lifecycle management
 - [ ] Drift detection
 - [ ] TUI dashboard
