@@ -77,16 +77,12 @@ pub const StorageState = struct {
         self.last_refresh_epoch = std.time.timestamp();
     }
 
-    pub fn getPools(self: *StorageState) []StoragePoolRow {
+    pub fn lock(self: *StorageState) void {
         self.mutex.lock();
-        defer self.mutex.unlock();
-        return self.pools;
     }
 
-    pub fn getVmDisks(self: *StorageState) []VmDiskRow {
-        self.mutex.lock();
-        defer self.mutex.unlock();
-        return self.vm_disks;
+    pub fn unlock(self: *StorageState) void {
+        self.mutex.unlock();
     }
 
     pub fn isLoading(self: *StorageState) bool {
@@ -165,16 +161,12 @@ pub const BackupState = struct {
         self.last_refresh_epoch = std.time.timestamp();
     }
 
-    pub fn getBackups(self: *BackupState) []BackupRow {
+    pub fn lock(self: *BackupState) void {
         self.mutex.lock();
-        defer self.mutex.unlock();
-        return self.backups;
     }
 
-    pub fn getK8sBackups(self: *BackupState) []K8sBackupRow {
-        self.mutex.lock();
-        defer self.mutex.unlock();
-        return self.k8s_backups;
+    pub fn unlock(self: *BackupState) void {
+        self.mutex.unlock();
     }
 
     pub fn isLoading(self: *BackupState) bool {
@@ -256,16 +248,12 @@ pub const PerfState = struct {
         self.last_refresh_epoch = std.time.timestamp();
     }
 
-    pub fn getHosts(self: *PerfState) []HostRow {
+    pub fn lock(self: *PerfState) void {
         self.mutex.lock();
-        defer self.mutex.unlock();
-        return self.hosts;
     }
 
-    pub fn getPods(self: *PerfState) []PodMetricRow {
-        self.mutex.lock();
-        defer self.mutex.unlock();
-        return self.pods;
+    pub fn unlock(self: *PerfState) void {
+        self.mutex.unlock();
     }
 
     pub fn isMetricsAvailable(self: *PerfState) bool {
@@ -354,13 +342,12 @@ pub const ClusterState = struct {
         self.last_refresh_epoch = std.time.timestamp();
     }
 
-    /// Get a snapshot of the current rows. Caller must NOT free.
-    /// Safe to read while mutex is not held — the pointer is stable
-    /// until the next swapRows call.
-    pub fn getRows(self: *ClusterState) []NodeRow {
+    pub fn lock(self: *ClusterState) void {
         self.mutex.lock();
-        defer self.mutex.unlock();
-        return self.rows;
+    }
+
+    pub fn unlock(self: *ClusterState) void {
+        self.mutex.unlock();
     }
 
     pub fn getLastRefresh(self: *ClusterState) i64 {

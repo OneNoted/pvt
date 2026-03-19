@@ -5,6 +5,8 @@ const Allocator = std.mem.Allocator;
 const Value = yaml.Yaml.Value;
 const Map = yaml.Yaml.Map;
 
+var discover_path_buf: [std.fs.max_path_bytes]u8 = undefined;
+
 // ── Config types ─────────────────────────────────────────────────────
 
 pub const Config = struct {
@@ -277,10 +279,17 @@ pub fn expandEnvVars(alloc: Allocator, input: []const u8) ![]const u8 {
 /// Discover the config file path using standard search order.
 pub fn discover() ![]const u8 {
     if (std.posix.getenv("PVT_CONFIG")) |p| {
-        std.fs.cwd().access(p, .{}) catch {};
+        std.fs.cwd().access(p, .{}) catch return error.ConfigNotFound;
         return p;
     }
-    std.fs.cwd().access("pvt.yaml", .{}) catch return error.ConfigNotFound;
+    std.fs.cwd().access("pvt.yaml", .{}) catch {
+        const home = std.posix.getenv("HOME") orelse return error.ConfigNotFound;
+        const fallback = std.fmt.bufPrint(&discover_path_buf, "{s}/.config/pvt/config.yaml", .{home}) catch {
+            return error.ConfigNotFound;
+        };
+        std.fs.cwd().access(fallback, .{}) catch return error.ConfigNotFound;
+        return fallback;
+    };
     return "pvt.yaml";
 }
 

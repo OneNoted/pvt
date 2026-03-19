@@ -391,8 +391,7 @@ pub const BackupView = struct {
         }
         // Check if confirm was just accepted
         if (!self.show_confirm and self.pending_idx != null) {
-            const idx = self.pending_idx.?;
-            if (idx < backups.len) {
+            if (self.filteredBackupIndex(backups, self.pending_idx.?)) |idx| {
                 const b = backups[idx];
                 self.pending_idx = null;
                 return .{
@@ -416,6 +415,17 @@ pub const BackupView = struct {
 
     fn truncate(s: []const u8, max: usize) []const u8 {
         return if (s.len > max) s[0..max] else s;
+    }
+
+    fn filteredBackupIndex(self: *BackupView, backups: []const poll.BackupRow, filtered_idx: u16) ?u16 {
+        const filter = if (self.filter_len > 0) self.filter_buf[0..self.filter_len] else "";
+        var matched: u16 = 0;
+        for (backups, 0..) |b, i| {
+            if (!self.matchesFilter(b, filter)) continue;
+            if (matched == filtered_idx) return @intCast(i);
+            matched += 1;
+        }
+        return null;
     }
 };
 

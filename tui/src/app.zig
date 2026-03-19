@@ -355,44 +355,81 @@ pub const App = struct {
     fn drawContent(self: *App, win: vaxis.Window) void {
         switch (self.active_view) {
             .cluster => {
-                const rows = self.cluster_state.getRows();
-                if (self.cluster_state.isLoading() and rows.len == 0) {
+                self.cluster_state.lock();
+                defer self.cluster_state.unlock();
+
+                if (self.cluster_state.is_loading and self.cluster_state.rows.len == 0) {
                     self.drawPlaceholder(win, "Loading cluster data...");
                 } else {
-                    self.cluster_view.draw(self.alloc, win, rows);
+                    self.cluster_view.draw(self.alloc, win, self.cluster_state.rows);
                 }
             },
             .storage => {
-                const pools = self.storage_state.getPools();
-                const disks = self.storage_state.getVmDisks();
-                if (self.storage_state.isLoading() and pools.len == 0) {
+                self.storage_state.lock();
+                defer self.storage_state.unlock();
+
+                if (self.storage_state.is_loading and self.storage_state.pools.len == 0) {
                     self.drawPlaceholder(win, "Loading storage data...");
                 } else {
-                    self.storage_view.draw(self.alloc, win, pools, disks);
+                    self.storage_view.draw(self.alloc, win, self.storage_state.pools, self.storage_state.vm_disks);
                 }
             },
             .backups => {
-                const backups = self.backup_state.getBackups();
-                const k8s_backups = self.backup_state.getK8sBackups();
-                if (self.backup_state.isLoading() and backups.len == 0 and k8s_backups.len == 0) {
-                    self.drawPlaceholder(win, "Loading backup data...");
-                } else {
-                    self.backup_view.draw(win, backups, k8s_backups);
+                var action: ?DeleteAction = null;
+                self.backup_state.lock();
+                {
+                    defer self.backup_state.unlock();
 
-                    // Check for pending delete action
-                    if (self.backup_view.consumeDeleteAction(backups)) |action| {
-                        self.executeDelete(action);
+                    if (self.backup_state.is_loading and
+                        self.backup_state.backups.len == 0 and
+                        self.backup_state.k8s_backups.len == 0)
+                    {
+                        self.drawPlaceholder(win, "Loading backup data...");
+                    } else {
+                        self.backup_view.draw(win, self.backup_state.backups, self.backup_state.k8s_backups);
+
+                        // Copy action data while the backing rows are still locked.
+                        if (self.backup_view.consumeDeleteAction(self.backup_state.backups)) |pending| {
+                            const node = self.alloc.dupe(u8, pending.node) catch return;
+                            const storage = self.alloc.dupe(u8, pending.storage) catch {
+                                self.alloc.free(node);
+                                return;
+                            };
+                            const volid = self.alloc.dupe(u8, pending.volid) catch {
+                                self.alloc.free(storage);
+                                self.alloc.free(node);
+                                return;
+                            };
+                            action = .{
+                                .node = node,
+                                .storage = storage,
+                                .volid = volid,
+                            };
+                        }
                     }
+                }
+
+                if (action) |owned_action| {
+                    defer self.alloc.free(owned_action.node);
+                    defer self.alloc.free(owned_action.storage);
+                    defer self.alloc.free(owned_action.volid);
+                    self.executeDelete(owned_action);
                 }
             },
             .performance => {
-                const hosts = self.perf_state.getHosts();
-                const pods = self.perf_state.getPods();
-                const available = self.perf_state.isMetricsAvailable();
-                if (self.perf_state.isLoading() and hosts.len == 0) {
+                self.perf_state.lock();
+                defer self.perf_state.unlock();
+
+                if (self.perf_state.is_loading and self.perf_state.hosts.len == 0) {
                     self.drawPlaceholder(win, "Loading performance data...");
                 } else {
-                    self.perf_view.draw(self.alloc, win, hosts, pods, available);
+                    self.perf_view.draw(
+                        self.alloc,
+                        win,
+                        self.perf_state.hosts,
+                        self.perf_state.pods,
+                        self.perf_state.metrics_available,
+                    );
                 }
             },
         }
