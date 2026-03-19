@@ -136,6 +136,8 @@ pub const BackupView = struct {
         self.total_rows = pve_count + k8s_count;
 
         if (self.total_rows == 0) {
+            self.selected = 0;
+            self.scroll = 0;
             if (filter.len > 0) {
                 drawCentered(win, "No backups matching filter");
             } else {
@@ -147,6 +149,19 @@ pub const BackupView = struct {
 
         // Clamp selection
         if (self.selected >= self.total_rows) self.selected = self.total_rows - 1;
+
+        const header_rows = calcHeaderRows(pve_count, k8s_count);
+        const visible_rows = win.height -| header_rows -| 1;
+        if (visible_rows == 0) {
+            self.scroll = 0;
+        } else if (self.selected < self.scroll) {
+            self.scroll = self.selected;
+        } else if (self.selected >= self.scroll + visible_rows) {
+            self.scroll = self.selected - visible_rows + 1;
+        }
+
+        if (self.scroll >= self.total_rows) self.scroll = self.total_rows - 1;
+        const end_idx = self.scroll +| visible_rows;
 
         var current_row: u16 = 0;
 
@@ -171,11 +186,14 @@ pub const BackupView = struct {
             var pve_idx: u16 = 0;
             for (backups) |b| {
                 if (!self.matchesFilter(b, filter)) continue;
+                const logical_idx = pve_idx;
+                pve_idx += 1;
+                if (logical_idx < self.scroll) continue;
+                if (logical_idx >= end_idx) continue;
                 if (current_row >= win.height -| 1) break;
-                const is_selected = (pve_idx == self.selected);
+                const is_selected = (logical_idx == self.selected);
                 drawBackupRow(win, current_row, b, is_selected, self.stale_days);
                 current_row += 1;
-                pve_idx += 1;
             }
         }
 
@@ -209,12 +227,14 @@ pub const BackupView = struct {
             var k8s_idx: u16 = 0;
             for (k8s_backups) |b| {
                 if (!self.matchesK8sFilter(b, filter)) continue;
-                if (current_row >= win.height -| 1) break;
                 const logical_idx = pve_count + k8s_idx;
+                k8s_idx += 1;
+                if (logical_idx < self.scroll) continue;
+                if (logical_idx >= end_idx) continue;
+                if (current_row >= win.height -| 1) break;
                 const is_selected = (logical_idx == self.selected);
                 drawK8sRow(win, current_row, b, is_selected);
                 current_row += 1;
-                k8s_idx += 1;
             }
         } else if (pve_count > 0 and current_row < win.height -| 2) {
             // Show "no K8s providers" hint
@@ -410,6 +430,18 @@ pub const BackupView = struct {
 
     fn truncate(s: []const u8, max: usize) []const u8 {
         return if (s.len > max) s[0..max] else s;
+    }
+
+    fn calcHeaderRows(pve_count: u16, k8s_count: u16) u16 {
+        var rows: u16 = 0;
+        if (pve_count > 0) rows += 2;
+        if (k8s_count > 0) {
+            if (pve_count > 0) rows += 1;
+            rows += 2;
+        } else if (pve_count > 0) {
+            rows += 1;
+        }
+        return rows;
     }
 
     fn filteredBackupIndex(self: *BackupView, backups: []const poll.BackupRow, filtered_idx: u16) ?u16 {
