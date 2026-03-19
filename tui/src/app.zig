@@ -151,6 +151,7 @@ pub const App = struct {
         while (!self.should_quit) {
             const event = self.loop.nextEvent();
             try self.handleEvent(alloc, event);
+            if (self.should_quit) break;
             try self.draw();
             try self.vx.render(self.tty.writer());
         }
@@ -175,8 +176,9 @@ pub const App = struct {
         }
 
         // Global keys
-        if (key.matches('q', .{})) {
+        if (key.matches('q', .{}) or key.matches('q', .{ .ctrl = true })) {
             self.should_quit = true;
+            self.loop.stop();
             return;
         }
         if (key.matches('?', .{})) {

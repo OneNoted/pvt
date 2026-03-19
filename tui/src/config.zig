@@ -129,8 +129,14 @@ pub fn load(alloc: Allocator, path: []const u8) !Config {
 }
 
 /// Dupe a string from the YAML tree so it outlives y.deinit().
+/// Also expands leading ~ to $HOME.
 fn dupeStr(alloc: Allocator, map: Map, key: []const u8) ![]const u8 {
-    return alloc.dupe(u8, try getStr(map, key));
+    const raw = try getStr(map, key);
+    if (raw.len > 0 and raw[0] == '~') {
+        const home = std.posix.getenv("HOME") orelse return alloc.dupe(u8, raw);
+        return std.fmt.allocPrint(alloc, "{s}{s}", .{ home, raw[1..] });
+    }
+    return alloc.dupe(u8, raw);
 }
 
 fn parseConfig(alloc: Allocator, root: Map) !Config {

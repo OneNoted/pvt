@@ -55,8 +55,7 @@ pub const HttpClient = struct {
             .allocator = self.allocator,
             .argv = argv_list.items,
             .max_output_bytes = 1024 * 1024,
-        }) catch |err| {
-            std.log.err("failed to run curl: {}", .{err});
+        }) catch {
             return error.HttpRequestFailed;
         };
         defer self.allocator.free(result.stderr);
@@ -67,7 +66,6 @@ pub const HttpClient = struct {
         }
 
         self.allocator.free(result.stdout);
-        std.log.err("curl {s} failed (exit {}): {s}", .{ method, term, result.stderr });
         return error.HttpRequestFailed;
     }
 
