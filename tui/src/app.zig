@@ -155,6 +155,9 @@ pub const App = struct {
             try self.draw();
             try self.vx.render(self.tty.writer());
         }
+
+        // Leave alt screen cleanly before deinit
+        try self.vx.exitAltScreen(self.tty.writer());
     }
 
     fn handleEvent(self: *App, alloc: std.mem.Allocator, event: Event) !void {
@@ -178,7 +181,6 @@ pub const App = struct {
         // Global keys
         if (key.matches('q', .{}) or key.matches('q', .{ .ctrl = true })) {
             self.should_quit = true;
-            self.loop.stop();
             return;
         }
         if (key.matches('?', .{})) {
