@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var tuiCmd = &cobra.Command{
@@ -26,10 +27,17 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("vitui binary not found: %w\n\nInstall vitui by running: cd tui && zig build -Doptimize=ReleaseSafe", err)
 	}
 
-	// Build vitui args, forwarding --config if set
+	// Build vitui args, forwarding the resolved config path
 	var vituiArgs []string
-	if cfgFile != "" {
-		vituiArgs = append(vituiArgs, "--config", cfgFile)
+	configPath := cfgFile
+	if configPath == "" {
+		// Use viper's resolved config path if available
+		if f := viper.ConfigFileUsed(); f != "" {
+			configPath = f
+		}
+	}
+	if configPath != "" {
+		vituiArgs = append(vituiArgs, "--config", configPath)
 	}
 
 	proc := exec.Command(binary, vituiArgs...)
