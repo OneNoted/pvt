@@ -220,14 +220,14 @@ pub const ProxmoxClient = struct {
 
     /// Delete a backup by volume ID.
     pub fn deleteBackup(self: *ProxmoxClient, node: []const u8, storage: []const u8, volid: []const u8) !void {
-        // URL-encode the volid (colons → %3A)
+        // Percent-encode the volid as a single path segment.
         var encoded: std.ArrayListUnmanaged(u8) = .empty;
         defer encoded.deinit(self.allocator);
         for (volid) |c| {
-            if (c == ':') {
-                try encoded.appendSlice(self.allocator, "%3A");
-            } else {
+            if (isUnreserved(c)) {
                 try encoded.append(self.allocator, c);
+            } else {
+                try std.fmt.format(encoded.writer(self.allocator), "%{X:0>2}", .{c});
             }
         }
 
@@ -244,3 +244,10 @@ pub const ProxmoxClient = struct {
         self.client.deinit();
     }
 };
+
+fn isUnreserved(c: u8) bool {
+    return switch (c) {
+        'A'...'Z', 'a'...'z', '0'...'9', '-', '.', '_', '~' => true,
+        else => false,
+    };
+}

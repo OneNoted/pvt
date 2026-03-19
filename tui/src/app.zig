@@ -158,6 +158,7 @@ pub const App = struct {
         // Now that self is at its final address, wire up runtime pointers.
         self.poller.cfg = &self.cfg;
         self.loop = .{ .tty = &self.tty, .vaxis = &self.vx };
+        self.poller.setRefreshNotifier(self, postRefreshEvent);
 
         try self.loop.init();
         try self.loop.start();
@@ -175,6 +176,11 @@ pub const App = struct {
             try self.draw();
             try self.vx.render(self.tty.writer());
         }
+    }
+
+    fn postRefreshEvent(context: *anyopaque) void {
+        const self: *App = @ptrCast(@alignCast(context));
+        _ = self.loop.tryPostEvent(.data_refresh);
     }
 
     fn handleEvent(self: *App, alloc: std.mem.Allocator, event: Event) !void {

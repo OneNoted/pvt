@@ -38,6 +38,10 @@ pub const MetricsClient = struct {
         for (candidates) |c| {
             const endpoint = detectEndpoint(allocator, kubeconfig, c.ns, c.svc, c.port);
             if (endpoint) |ep| {
+                if (!probeEndpoint(allocator, ep)) {
+                    allocator.free(ep);
+                    continue;
+                }
                 return .{
                     .allocator = allocator,
                     .endpoint = ep,
@@ -76,6 +80,21 @@ pub const MetricsClient = struct {
             return std.fmt.allocPrint(allocator, "http://{s}.{s}.svc:{s}", .{ svc, ns, port }) catch null;
         }
         return null;
+    }
+
+    fn probeEndpoint(allocator: Allocator, endpoint: []const u8) bool {
+        const url = std.fmt.allocPrint(allocator, "{s}/api/v1/query?query=up", .{endpoint}) catch return false;
+        defer allocator.free(url);
+
+        const result = std.process.Child.run(.{
+            .allocator = allocator,
+            .argv = &.{ "curl", "-s", "-f", "--max-time", "5", url },
+            .max_output_bytes = 16 * 1024,
+        }) catch return false;
+        defer allocator.free(result.stderr);
+        defer allocator.free(result.stdout);
+
+        return result.term == .Exited and result.term.Exited == 0;
     }
 
     /// Query pod CPU usage via PromQL.

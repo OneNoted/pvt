@@ -395,6 +395,8 @@ pub const Poller = struct {
     should_stop: std.atomic.Value(bool) = std.atomic.Value(bool).init(false),
     force_refresh: std.atomic.Value(bool) = std.atomic.Value(bool).init(false),
     thread: ?std.Thread = null,
+    refresh_context: ?*anyopaque = null,
+    refresh_callback: ?*const fn (*anyopaque) void = null,
     allocator: Allocator,
 
     pub fn init(
@@ -431,6 +433,15 @@ pub const Poller = struct {
 
     pub fn triggerRefresh(self: *Poller) void {
         self.force_refresh.store(true, .release);
+    }
+
+    pub fn setRefreshNotifier(
+        self: *Poller,
+        context: *anyopaque,
+        callback: *const fn (*anyopaque) void,
+    ) void {
+        self.refresh_context = context;
+        self.refresh_callback = callback;
     }
 
     fn pollLoop(self: *Poller) void {
@@ -562,6 +573,12 @@ pub const Poller = struct {
 
         // Fetch performance data
         self.fetchPerformance();
+
+        if (self.refresh_callback) |callback| {
+            if (self.refresh_context) |context| {
+                callback(context);
+            }
+        }
     }
 
     fn fetchStorage(self: *Poller) void {
