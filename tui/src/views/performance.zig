@@ -154,7 +154,13 @@ pub const PerformanceView = struct {
         self.sortPods(filtered.items);
 
         self.num_pods = @intCast(filtered.items.len);
-        if (self.selected >= self.num_pods and self.num_pods > 0) self.selected = self.num_pods - 1;
+        if (self.num_pods == 0) {
+            self.selected = 0;
+            self.scroll = 0;
+        } else {
+            if (self.selected >= self.num_pods) self.selected = self.num_pods - 1;
+            if (self.scroll >= self.num_pods) self.scroll = self.num_pods - 1;
+        }
 
         // Pod header
         {

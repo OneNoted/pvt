@@ -527,12 +527,17 @@ pub const Poller = struct {
                 // Fetch Talos version for this node
                 var talos_ver: []const u8 = "-";
                 var k8s_ver: []const u8 = "-";
+                var version_result: ?talos.TalosVersion = null;
                 if (talos_client.getVersion(node.ip)) |ver| {
+                    version_result = ver;
                     talos_ver = ver.talos_version;
                     k8s_ver = ver.kubernetes_version;
-                    // Note: ver.node is freed by us since we'll dupe the strings below
-                    alloc.free(ver.node);
                 }
+                defer if (version_result) |ver| {
+                    alloc.free(ver.node);
+                    alloc.free(ver.talos_version);
+                    alloc.free(ver.kubernetes_version);
+                };
 
                 // Determine health
                 const health: []const u8 = if (std.mem.eql(u8, vm_status, "running"))
@@ -555,10 +560,6 @@ pub const Poller = struct {
                     .etcd = alloc.dupe(u8, etcd_role) catch continue,
                     .health = alloc.dupe(u8, health) catch continue,
                 }) catch continue;
-
-                // Free talos version strings if they were allocated
-                if (!std.mem.eql(u8, talos_ver, "-")) alloc.free(talos_ver);
-                if (!std.mem.eql(u8, k8s_ver, "-")) alloc.free(k8s_ver);
             }
         }
 
