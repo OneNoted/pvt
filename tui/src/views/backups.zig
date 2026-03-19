@@ -136,6 +136,8 @@ pub const BackupView = struct {
         self.total_rows = pve_count + k8s_count;
 
         if (self.total_rows == 0) {
+            self.selected = 0;
+            self.scroll = 0;
             if (filter.len > 0) {
                 drawCentered(win, "No backups matching filter");
             } else {
@@ -147,6 +149,24 @@ pub const BackupView = struct {
 
         // Clamp selection
         if (self.selected >= self.total_rows) self.selected = self.total_rows - 1;
+
+        const footer_rows = self.filterBarRows();
+        const content_height = win.height -| footer_rows;
+        if (content_height == 0) {
+            self.scroll = 0;
+            self.drawFilterBar(win);
+            return;
+        }
+
+        const visible_rows = calcVisibleRows(content_height, pve_count, k8s_count);
+        if (self.selected < self.scroll) {
+            self.scroll = self.selected;
+        } else if (self.selected >= self.scroll + visible_rows) {
+            self.scroll = self.selected - visible_rows + 1;
+        }
+
+        if (self.scroll >= self.total_rows) self.scroll = self.total_rows - 1;
+        const end_idx = self.scroll +| visible_rows;
 
         var current_row: u16 = 0;
 
@@ -171,24 +191,27 @@ pub const BackupView = struct {
             var pve_idx: u16 = 0;
             for (backups) |b| {
                 if (!self.matchesFilter(b, filter)) continue;
-                if (current_row >= win.height -| 1) break;
-                const is_selected = (pve_idx == self.selected);
+                const logical_idx = pve_idx;
+                pve_idx += 1;
+                if (logical_idx < self.scroll) continue;
+                if (logical_idx >= end_idx) continue;
+                if (current_row >= content_height) break;
+                const is_selected = (logical_idx == self.selected);
                 drawBackupRow(win, current_row, b, is_selected, self.stale_days);
                 current_row += 1;
-                pve_idx += 1;
             }
         }
 
         // K8s Backups section
         if (k8s_count > 0) {
-            if (pve_count > 0 and current_row < win.height -| 3) {
+            if (pve_count > 0 and current_row < content_height -| 3) {
                 // Separator
                 current_row += 1;
             }
 
             var k8s_header_buf: [48]u8 = undefined;
             const k8s_header = std.fmt.bufPrint(&k8s_header_buf, " K8s Backups ({d})", .{k8s_count}) catch " K8s Backups";
-            if (current_row < win.height -| 1) {
+            if (current_row < content_height -| 1) {
                 const hdr_style: vaxis.Style = .{ .fg = .{ .index = 5 }, .bg = .{ .index = 8 }, .bold = true };
                 _ = win.print(&.{.{ .text = k8s_header, .style = hdr_style }}, .{
                     .row_offset = current_row,
@@ -197,7 +220,7 @@ pub const BackupView = struct {
                 current_row += 1;
             }
 
-            if (current_row < win.height -| 1) {
+            if (current_row < content_height) {
                 const col_hdr_style: vaxis.Style = .{ .fg = .{ .index = 7 }, .bold = true };
                 _ = win.print(&.{.{ .text = k8s_col_header, .style = col_hdr_style }}, .{
                     .row_offset = current_row,
@@ -209,14 +232,16 @@ pub const BackupView = struct {
             var k8s_idx: u16 = 0;
             for (k8s_backups) |b| {
                 if (!self.matchesK8sFilter(b, filter)) continue;
-                if (current_row >= win.height -| 1) break;
                 const logical_idx = pve_count + k8s_idx;
+                k8s_idx += 1;
+                if (logical_idx < self.scroll) continue;
+                if (logical_idx >= end_idx) continue;
+                if (current_row >= content_height) break;
                 const is_selected = (logical_idx == self.selected);
                 drawK8sRow(win, current_row, b, is_selected);
                 current_row += 1;
-                k8s_idx += 1;
             }
-        } else if (pve_count > 0 and current_row < win.height -| 2) {
+        } else if (pve_count > 0 and current_row < content_height -| 1) {
             // Show "no K8s providers" hint
             current_row += 1;
             const hint_style: vaxis.Style = .{ .fg = .{ .index = 8 } };
@@ -410,6 +435,26 @@ pub const BackupView = struct {
 
     fn truncate(s: []const u8, max: usize) []const u8 {
         return if (s.len > max) s[0..max] else s;
+    }
+
+    fn calcHeaderRows(pve_count: u16, k8s_count: u16) u16 {
+        var rows: u16 = 0;
+        if (pve_count > 0) rows += 2;
+        if (k8s_count > 0) {
+            if (pve_count > 0) rows += 1;
+            rows += 2;
+        }
+        return rows;
+    }
+
+    fn filterBarRows(self: *BackupView) u16 {
+        return if (self.filter_active or self.filter_len > 0) 1 else 0;
+    }
+
+    fn calcVisibleRows(content_height: u16, pve_count: u16, k8s_count: u16) u16 {
+        if (content_height == 0) return 0;
+        const header_rows = calcHeaderRows(pve_count, k8s_count);
+        return @max(@as(u16, 1), content_height -| header_rows);
     }
 
     fn filteredBackupIndex(self: *BackupView, backups: []const poll.BackupRow, filtered_idx: u16) ?u16 {
