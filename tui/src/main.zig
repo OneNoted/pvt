@@ -21,12 +21,15 @@ pub fn main() !void {
         std.log.err("failed to initialize TUI: {}", .{err});
         std.process.exit(1);
     };
-    defer app.deinit(alloc);
 
     app.run(alloc) catch |err| {
+        app.restoreTerminal(alloc);
         std.log.err("runtime error: {}", .{err});
         std.process.exit(1);
     };
+
+    app.restoreTerminal(alloc);
+    std.process.exit(0);
 }
 
 fn parseArgs() ![]const u8 {

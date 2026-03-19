@@ -115,19 +115,27 @@ pub const App = struct {
             .poller = poller,
         };
         app.tty = try vaxis.Tty.init(&app.tty_buf);
-        app.loop = .{ .tty = &app.tty, .vaxis = &app.vx };
+        // `App` is returned by value, so pointer-bearing runtime fields must be
+        // wired after the caller has the app at its final address.
         return app;
     }
 
-    pub fn deinit(self: *App, alloc: std.mem.Allocator) void {
+    pub fn restoreTerminal(self: *App, alloc: std.mem.Allocator) void {
         // Signal poller to stop (non-blocking) so it can begin winding down
         self.poller.should_stop.store(true, .release);
 
-        // Restore terminal FIRST so the user isn't staring at a frozen screen
-        // while we wait for background threads to finish
-        self.loop.stop();
+        // `vaxis.Loop.stop()` wakes the reader by writing a device-status
+        // query, which can hang shutdown if the terminal never answers it.
+        // Mark the loop as quitting, restore the screen, then close the TTY.
+        // The normal quit path exits the process immediately after this, so we
+        // intentionally do not wait for background threads here.
+        self.loop.should_quit = true;
         self.vx.deinit(alloc, self.tty.writer());
         self.tty.deinit();
+    }
+
+    pub fn deinit(self: *App, alloc: std.mem.Allocator) void {
+        self.restoreTerminal(alloc);
 
         // Now wait for the poller thread to actually finish
         if (self.poller.thread) |t| {
@@ -147,8 +155,9 @@ pub const App = struct {
     }
 
     pub fn run(self: *App, alloc: std.mem.Allocator) !void {
-        // Now that self is at its final address, wire up the config pointer
+        // Now that self is at its final address, wire up runtime pointers.
         self.poller.cfg = &self.cfg;
+        self.loop = .{ .tty = &self.tty, .vaxis = &self.vx };
 
         try self.loop.init();
         try self.loop.start();
