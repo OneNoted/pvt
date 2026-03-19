@@ -128,6 +128,11 @@ pub fn load(alloc: Allocator, path: []const u8) !Config {
     return parseConfig(alloc, root_map);
 }
 
+/// Dupe a string from the YAML tree so it outlives y.deinit().
+fn dupeStr(alloc: Allocator, map: Map, key: []const u8) ![]const u8 {
+    return alloc.dupe(u8, try getStr(map, key));
+}
+
 fn parseConfig(alloc: Allocator, root: Map) !Config {
     const version = try getStr(root, "version");
     if (!std.mem.eql(u8, version, "1")) {
@@ -148,10 +153,10 @@ fn parseConfig(alloc: Allocator, root: Map) !Config {
     for (pve_clusters_list, 0..) |item, i| {
         const m = item.asMap() orelse return error.ConfigParseFailed;
         pve_clusters[i] = .{
-            .name = try getStr(m, "name"),
-            .endpoint = try getStr(m, "endpoint"),
-            .token_id = try getStr(m, "token_id"),
-            .token_secret = try getStr(m, "token_secret"),
+            .name = try dupeStr(alloc, m, "name"),
+            .endpoint = try dupeStr(alloc, m, "endpoint"),
+            .token_id = try dupeStr(alloc, m, "token_id"),
+            .token_secret = try dupeStr(alloc, m, "token_secret"),
             .tls_verify = getBool(m, "tls_verify", true),
         };
     }
@@ -162,8 +167,8 @@ fn parseConfig(alloc: Allocator, root: Map) !Config {
         return error.ConfigParseFailed;
     };
     const talos = TalosConfig{
-        .config_path = try getStr(talos_map, "config_path"),
-        .context = try getStr(talos_map, "context"),
+        .config_path = try dupeStr(alloc, talos_map, "config_path"),
+        .context = try dupeStr(alloc, talos_map, "context"),
     };
 
     // Parse clusters section
@@ -179,17 +184,17 @@ fn parseConfig(alloc: Allocator, root: Map) !Config {
         for (nodes_list, 0..) |n, j| {
             const nm = n.asMap() orelse return error.ConfigParseFailed;
             nodes[j] = .{
-                .name = try getStr(nm, "name"),
-                .role = try getStr(nm, "role"),
+                .name = try dupeStr(alloc, nm, "name"),
+                .role = try dupeStr(alloc, nm, "role"),
                 .proxmox_vmid = getInt(nm, "proxmox_vmid", 0),
-                .proxmox_node = try getStr(nm, "proxmox_node"),
-                .ip = try getStr(nm, "ip"),
+                .proxmox_node = try dupeStr(alloc, nm, "proxmox_node"),
+                .ip = try dupeStr(alloc, nm, "ip"),
             };
         }
         clusters[i] = .{
-            .name = try getStr(m, "name"),
-            .proxmox_cluster = try getStr(m, "proxmox_cluster"),
-            .endpoint = try getStr(m, "endpoint"),
+            .name = try dupeStr(alloc, m, "name"),
+            .proxmox_cluster = try dupeStr(alloc, m, "proxmox_cluster"),
+            .endpoint = try dupeStr(alloc, m, "endpoint"),
             .nodes = nodes,
         };
     }
@@ -212,7 +217,7 @@ fn parseConfig(alloc: Allocator, root: Map) !Config {
     }
 
     return .{
-        .version = version,
+        .version = try alloc.dupe(u8, version),
         .proxmox = .{ .clusters = pve_clusters },
         .talos = talos,
         .clusters = clusters,

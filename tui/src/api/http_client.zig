@@ -7,14 +7,16 @@ const Allocator = std.mem.Allocator;
 pub const HttpClient = struct {
     allocator: Allocator,
     endpoint: []const u8,
-    auth_header: []const u8,
+    token_id: []const u8,
+    token_secret: []const u8,
     tls_verify: bool,
 
     pub fn init(allocator: Allocator, pve: config.ProxmoxCluster) HttpClient {
         return .{
             .allocator = allocator,
             .endpoint = pve.endpoint,
-            .auth_header = pve.token_secret,
+            .token_id = pve.token_id,
+            .token_secret = pve.token_secret,
             .tls_verify = pve.tls_verify,
         };
     }
@@ -33,7 +35,7 @@ pub const HttpClient = struct {
         const url = try std.fmt.allocPrint(self.allocator, "{s}{s}", .{ self.endpoint, path });
         defer self.allocator.free(url);
 
-        const auth = try std.fmt.allocPrint(self.allocator, "Authorization: PVEAPIToken={s}", .{self.auth_header});
+        const auth = try std.fmt.allocPrint(self.allocator, "Authorization: PVEAPIToken={s}={s}", .{ self.token_id, self.token_secret });
         defer self.allocator.free(auth);
 
         var argv_list: std.ArrayListUnmanaged([]const u8) = .empty;
