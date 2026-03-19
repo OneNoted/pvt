@@ -117,6 +117,7 @@ pub const StorageState = struct {
 
 /// A single row in the backups table.
 pub const BackupRow = struct {
+    proxmox_cluster: []const u8,
     volid: []const u8,
     node: []const u8,
     storage: []const u8,
@@ -177,6 +178,7 @@ pub const BackupState = struct {
 
     fn freeDataInternal(self: *BackupState) void {
         for (self.backups) |row| {
+            self.allocator.free(row.proxmox_cluster);
             self.allocator.free(row.volid);
             self.allocator.free(row.node);
             self.allocator.free(row.storage);
@@ -708,6 +710,7 @@ pub const Poller = struct {
                     const is_stale = age_days > self.cfg.tui_settings.stale_days;
 
                     backups_list.append(alloc, .{
+                        .proxmox_cluster = alloc.dupe(u8, pc.name) catch continue,
                         .volid = alloc.dupe(u8, entry.volid) catch continue,
                         .node = alloc.dupe(u8, entry.node) catch continue,
                         .storage = alloc.dupe(u8, entry.storage) catch continue,

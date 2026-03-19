@@ -108,7 +108,7 @@ pub const App = struct {
             .cluster_state = state,
             .storage_view = StorageView.init(cfg.tui_settings.warn_threshold, cfg.tui_settings.crit_threshold),
             .storage_state = storage_state,
-            .backup_view = BackupView.init(cfg.tui_settings.stale_days),
+            .backup_view = BackupView.init(alloc, cfg.tui_settings.stale_days),
             .backup_state = backup_state,
             .perf_view = PerformanceView.init(),
             .perf_state = perf_state,
@@ -395,27 +395,12 @@ pub const App = struct {
                         self.backup_view.draw(win, self.backup_state.backups, self.backup_state.k8s_backups);
 
                         // Copy action data while the backing rows are still locked.
-                        if (self.backup_view.consumeDeleteAction(self.backup_state.backups)) |pending| {
-                            const node = self.alloc.dupe(u8, pending.node) catch return;
-                            const storage = self.alloc.dupe(u8, pending.storage) catch {
-                                self.alloc.free(node);
-                                return;
-                            };
-                            const volid = self.alloc.dupe(u8, pending.volid) catch {
-                                self.alloc.free(storage);
-                                self.alloc.free(node);
-                                return;
-                            };
-                            action = .{
-                                .node = node,
-                                .storage = storage,
-                                .volid = volid,
-                            };
-                        }
+                        action = self.backup_view.consumeDeleteAction();
                     }
                 }
 
                 if (action) |owned_action| {
+                    defer self.alloc.free(owned_action.proxmox_cluster);
                     defer self.alloc.free(owned_action.node);
                     defer self.alloc.free(owned_action.storage);
                     defer self.alloc.free(owned_action.volid);
@@ -442,11 +427,11 @@ pub const App = struct {
     }
 
     fn executeDelete(self: *App, action: DeleteAction) void {
-        // Find matching PVE cluster config for this node
         for (self.cfg.proxmox.clusters) |pc| {
+            if (!std.mem.eql(u8, pc.name, action.proxmox_cluster)) continue;
             var client = proxmox_api.ProxmoxClient.init(self.alloc, pc);
             defer client.deinit();
-            client.deleteBackup(action.node, action.storage, action.volid) catch continue;
+            client.deleteBackup(action.node, action.storage, action.volid) catch return;
             // Trigger refresh to show updated list
             self.poller.triggerRefresh();
             return;

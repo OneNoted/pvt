@@ -3,6 +3,7 @@ const vaxis = @import("vaxis");
 const poll = @import("../poll.zig");
 
 pub const DeleteAction = struct {
+    proxmox_cluster: []const u8,
     node: []const u8,
     storage: []const u8,
     volid: []const u8,
@@ -13,6 +14,7 @@ pub const BackupView = struct {
     scroll: u16 = 0,
     num_backups: u16 = 0,
     stale_days: u32,
+    allocator: std.mem.Allocator,
 
     // Total row count across both sections (for navigation)
     total_rows: u16 = 0,
@@ -20,6 +22,7 @@ pub const BackupView = struct {
     // Confirmation dialog state
     show_confirm: bool = false,
     pending_idx: ?u16 = null,
+    pending_delete: ?DeleteAction = null,
 
     // Set by handleKey when user confirms deletion
     delete_action: ?DeleteAction = null,
@@ -32,19 +35,25 @@ pub const BackupView = struct {
     const pve_col_header = "  VM Name         VMID    Date              Size         Storage       Age";
     const k8s_col_header = "  Name                    Namespace      Source    Status       Schedule         Last Run";
 
-    pub fn init(stale_days: u32) BackupView {
-        return .{ .stale_days = stale_days };
+    pub fn init(allocator: std.mem.Allocator, stale_days: u32) BackupView {
+        return .{
+            .stale_days = stale_days,
+            .allocator = allocator,
+        };
     }
 
     pub fn handleKey(self: *BackupView, key: vaxis.Key) void {
         // Confirmation dialog intercepts all input
         if (self.show_confirm) {
             if (key.matches('y', .{})) {
+                self.delete_action = self.pending_delete;
+                self.pending_delete = null;
+                self.pending_idx = null;
                 self.show_confirm = false;
             } else if (key.matches('n', .{}) or key.matches(vaxis.Key.escape, .{})) {
                 self.show_confirm = false;
+                self.clearPendingDelete();
                 self.pending_idx = null;
-                self.delete_action = null;
             }
             return;
         }
@@ -96,6 +105,7 @@ pub const BackupView = struct {
         } else if (key.matches('d', .{})) {
             // Only allow deletion on PVE backup rows
             if (self.selected < self.num_backups) {
+                self.clearPendingDelete();
                 self.pending_idx = self.selected;
                 self.show_confirm = true;
                 self.delete_action = null;
@@ -221,22 +231,18 @@ pub const BackupView = struct {
 
         // Confirmation dialog overlay
         if (self.show_confirm) {
-            if (self.pending_idx) |idx| {
-                // Map filtered idx back to actual backup
-                var actual_idx: u16 = 0;
-                var filtered_count: u16 = 0;
-                for (backups, 0..) |_, i| {
-                    if (self.matchesFilter(backups[i], filter)) {
-                        if (filtered_count == idx) {
-                            actual_idx = @intCast(i);
-                            break;
-                        }
-                        filtered_count += 1;
+            if (self.pending_delete == null) {
+                if (self.pending_idx) |idx| {
+                    if (self.filteredBackupIndex(backups, idx)) |actual_idx| {
+                        self.pending_delete = self.actionFromBackup(backups[actual_idx]) catch null;
+                    } else {
+                        self.show_confirm = false;
+                        self.pending_idx = null;
                     }
                 }
-                if (actual_idx < backups.len) {
-                    self.drawConfirmDialog(win, backups[actual_idx]);
-                }
+            }
+            if (self.pending_delete) |action| {
+                self.drawConfirmDialog(win, action.volid);
             }
         }
     }
@@ -343,7 +349,7 @@ pub const BackupView = struct {
         });
     }
 
-    fn drawConfirmDialog(self: *BackupView, win: vaxis.Window, backup: poll.BackupRow) void {
+    fn drawConfirmDialog(self: *BackupView, win: vaxis.Window, volid: []const u8) void {
         _ = self;
         const box_w: u16 = 52;
         const box_h: u16 = 7;
@@ -370,7 +376,7 @@ pub const BackupView = struct {
         });
 
         var name_buf: [48]u8 = undefined;
-        const name_line = std.fmt.bufPrint(&name_buf, "  {s}", .{truncate(backup.volid, 46)}) catch "  ?";
+        const name_line = std.fmt.bufPrint(&name_buf, "  {s}", .{truncate(volid, 46)}) catch "  ?";
         _ = dialog.print(&.{.{ .text = name_line, .style = text_style }}, .{
             .row_offset = 2,
             .wrap = .none,
@@ -383,23 +389,12 @@ pub const BackupView = struct {
     }
 
     /// Check if there's a pending delete action and consume it.
-    pub fn consumeDeleteAction(self: *BackupView, backups: []const poll.BackupRow) ?DeleteAction {
+    pub fn consumeDeleteAction(self: *BackupView) ?DeleteAction {
         if (self.delete_action != null) {
-            self.delete_action = null;
             self.pending_idx = null;
-            return null;
-        }
-        // Check if confirm was just accepted
-        if (!self.show_confirm and self.pending_idx != null) {
-            if (self.filteredBackupIndex(backups, self.pending_idx.?)) |idx| {
-                const b = backups[idx];
-                self.pending_idx = null;
-                return .{
-                    .node = b.node,
-                    .storage = b.storage,
-                    .volid = b.volid,
-                };
-            }
+            const action = self.delete_action.?;
+            self.delete_action = null;
+            return action;
         }
         return null;
     }
@@ -426,6 +421,32 @@ pub const BackupView = struct {
             matched += 1;
         }
         return null;
+    }
+
+    fn actionFromBackup(self: *BackupView, backup: poll.BackupRow) !DeleteAction {
+        const proxmox_cluster = try self.allocator.dupe(u8, backup.proxmox_cluster);
+        errdefer self.allocator.free(proxmox_cluster);
+        const node = try self.allocator.dupe(u8, backup.node);
+        errdefer self.allocator.free(node);
+        const storage = try self.allocator.dupe(u8, backup.storage);
+        errdefer self.allocator.free(storage);
+        const volid = try self.allocator.dupe(u8, backup.volid);
+        return .{
+            .proxmox_cluster = proxmox_cluster,
+            .node = node,
+            .storage = storage,
+            .volid = volid,
+        };
+    }
+
+    fn clearPendingDelete(self: *BackupView) void {
+        if (self.pending_delete) |action| {
+            self.allocator.free(action.proxmox_cluster);
+            self.allocator.free(action.node);
+            self.allocator.free(action.storage);
+            self.allocator.free(action.volid);
+            self.pending_delete = null;
+        }
     }
 };
 
