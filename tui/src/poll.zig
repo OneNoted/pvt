@@ -223,6 +223,8 @@ pub const PodMetricRow = struct {
     net_tx_str: []const u8, // e.g. "0.5 KiB/s"
     cpu_cores: f64, // for sorting
     mem_bytes: f64, // for sorting
+    net_rx_bytes_sec: f64, // for sorting
+    net_tx_bytes_sec: f64, // for sorting
 };
 
 /// Thread-safe shared state for performance view data.
@@ -925,6 +927,8 @@ pub const Poller = struct {
                         .net_tx_str = formatRate(alloc, tx_val),
                         .cpu_cores = cpu.value,
                         .mem_bytes = mem_val,
+                        .net_rx_bytes_sec = rx_val,
+                        .net_tx_bytes_sec = tx_val,
                     }) catch continue;
                 }
             }

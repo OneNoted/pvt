@@ -193,6 +193,10 @@ pub const PerformanceView = struct {
 
         // Scrolling
         const visible = win.height -| current_row -| 1;
+        if (visible == 0) {
+            self.scroll = 0;
+            return;
+        }
         if (self.selected < self.scroll) {
             self.scroll = self.selected;
         } else if (self.selected >= self.scroll + visible) {
@@ -352,19 +356,22 @@ pub const PerformanceView = struct {
                 }
             }.cmp),
             .net_rx => {
-                // Sort by pod name as fallback since we don't store raw rx value in PodMetricRow
                 std.mem.sort(poll.PodMetricRow, items, asc, struct {
                     fn cmp(ascending: bool, a: poll.PodMetricRow, b: poll.PodMetricRow) bool {
-                        const ord = std.mem.order(u8, a.net_rx_str, b.net_rx_str);
-                        return if (ascending) ord == .lt else ord == .gt;
+                        return if (ascending)
+                            a.net_rx_bytes_sec < b.net_rx_bytes_sec
+                        else
+                            a.net_rx_bytes_sec > b.net_rx_bytes_sec;
                     }
                 }.cmp);
             },
             .net_tx => {
                 std.mem.sort(poll.PodMetricRow, items, asc, struct {
                     fn cmp(ascending: bool, a: poll.PodMetricRow, b: poll.PodMetricRow) bool {
-                        const ord = std.mem.order(u8, a.net_tx_str, b.net_tx_str);
-                        return if (ascending) ord == .lt else ord == .gt;
+                        return if (ascending)
+                            a.net_tx_bytes_sec < b.net_tx_bytes_sec
+                        else
+                            a.net_tx_bytes_sec > b.net_tx_bytes_sec;
                     }
                 }.cmp);
             },
