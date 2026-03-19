@@ -120,10 +120,21 @@ pub const App = struct {
     }
 
     pub fn deinit(self: *App, alloc: std.mem.Allocator) void {
-        self.poller.stop();
+        // Signal poller to stop (non-blocking) so it can begin winding down
+        self.poller.should_stop.store(true, .release);
+
+        // Restore terminal FIRST so the user isn't staring at a frozen screen
+        // while we wait for background threads to finish
         self.loop.stop();
         self.vx.deinit(alloc, self.tty.writer());
         self.tty.deinit();
+
+        // Now wait for the poller thread to actually finish
+        if (self.poller.thread) |t| {
+            t.join();
+            self.poller.thread = null;
+        }
+
         self.cluster_state.deinit();
         self.storage_state.deinit();
         self.backup_state.deinit();
@@ -155,9 +166,6 @@ pub const App = struct {
             try self.draw();
             try self.vx.render(self.tty.writer());
         }
-
-        // Leave alt screen cleanly before deinit
-        try self.vx.exitAltScreen(self.tty.writer());
     }
 
     fn handleEvent(self: *App, alloc: std.mem.Allocator, event: Event) !void {
