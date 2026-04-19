@@ -21,6 +21,27 @@ Pre-flight validation, cluster status, and lifecycle orchestration for Talos clu
 go install github.com/OneNoted/pvt@latest
 ```
 
+## TUI build
+
+The interactive `pvt tui` dashboard now uses a Rust + Ratatui binary named `vitui`.
+
+Build it from the repository root with:
+
+```bash
+cd tui
+cargo build --release
+```
+
+`pvt tui` will look for `vitui` next to the `pvt` binary, then in `tui/target/release/`
+and `tui/target/debug/` relative to the current working directory, the `pvt` binary
+directory, and its parent directory. Set `PVT_VITUI_BIN` to use an explicit binary path.
+
+If your system installs helper binaries outside standard locations, you can also override:
+
+- `PVT_KUBECTL_BIN`
+- `PVT_TALOSCTL_BIN`
+- `PVT_CURL_BIN`
+
 ## Usage
 
 ```bash
@@ -71,7 +92,7 @@ proxmox:
       endpoint: "https://pve.local:8006"
       token_id: "pvt@pam!automation"
       token_secret: "${PVT_PVE_TOKEN}"
-      tls_verify: false
+      tls_verify: false  # only for self-signed lab setups; prefer true
 
 talos:
   config_path: "~/talos/mycluster/talosconfig"
@@ -112,4 +133,4 @@ Findings include the corresponding `qm set` fix command.
 - [x] Rolling upgrades
 - [ ] Node lifecycle management
 - [ ] Drift detection
-- [ ] TUI dashboard
+- [x] Rust Ratatui TUI dashboard
