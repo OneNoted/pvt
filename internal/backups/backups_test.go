@@ -43,3 +43,14 @@ func TestVMIDsForCluster(t *testing.T) {
 		t.Fatalf("vmIDsForCluster() includes unrelated VMID")
 	}
 }
+
+func TestFilterConfiguredBackupsExcludesUnmanagedVMIDs(t *testing.T) {
+	backups := []proxmox.BackupEntry{
+		{VolID: "managed", VMID: 100},
+		{VolID: "unmanaged", VMID: 999},
+	}
+	got := filterConfiguredBackups(backups, map[uint64]bool{100: true})
+	if len(got) != 1 || got[0].VolID != "managed" {
+		t.Fatalf("filterConfiguredBackups() = %#v, want only managed backup", got)
+	}
+}

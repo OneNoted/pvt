@@ -1,15 +1,12 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
 
-	"github.com/OneNoted/pvt/internal/config"
 	"github.com/OneNoted/pvt/internal/health"
-	"github.com/OneNoted/pvt/internal/talos"
 	"github.com/OneNoted/pvt/internal/ui"
 )
 
@@ -72,60 +69,4 @@ func runStatusSummary(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
-}
-
-func printNodeTable(ctx context.Context, tc *talos.Client, cluster config.ClusterConfig, allNodes []string) {
-	tbl := ui.NewTable("Name", "Role", "IP", "PVE Node", "VMID", "Talos Version", "Status")
-
-	// Try to get versions for all nodes — index by both hostname and IP
-	versions, vErr := tc.Version(ctx, allNodes...)
-	versionMap := make(map[string]string)
-	if vErr == nil {
-		for _, v := range versions {
-			versionMap[v.Node] = v.TalosVersion
-			versionMap[v.Endpoint] = v.TalosVersion
-		}
-	}
-
-	for _, node := range cluster.Nodes {
-		ver := "unknown"
-		status := "unreachable"
-
-		if v, ok := versionMap[node.Name]; ok {
-			ver = v
-			status = "ready"
-		} else if v, ok := versionMap[node.IP]; ok {
-			ver = v
-			status = "ready"
-		}
-
-		ui.AddRow(tbl,
-			node.Name,
-			node.Role,
-			node.IP,
-			node.ProxmoxNode,
-			fmt.Sprintf("%d", node.ProxmoxVMID),
-			ver,
-			status,
-		)
-	}
-
-	tbl.Render(os.Stdout)
-}
-
-func printOfflineTable(cluster config.ClusterConfig) {
-	tbl := ui.NewTable("Name", "Role", "IP", "PVE Node", "VMID", "Status")
-
-	for _, node := range cluster.Nodes {
-		ui.AddRow(tbl,
-			node.Name,
-			node.Role,
-			node.IP,
-			node.ProxmoxNode,
-			fmt.Sprintf("%d", node.ProxmoxVMID),
-			"offline",
-		)
-	}
-
-	tbl.Render(os.Stdout)
 }

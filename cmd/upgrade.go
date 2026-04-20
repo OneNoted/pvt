@@ -57,12 +57,7 @@ var upgradePostflightCmd = &cobra.Command{
 }
 
 func runUpgrade(cmd *cobra.Command, args []string) error {
-	cfgPath, err := config.Discover()
-	if err != nil {
-		return err
-	}
-
-	cfg, err := config.Load(cfgPath)
+	_, cfg, err := loadConfig()
 	if err != nil {
 		return err
 	}

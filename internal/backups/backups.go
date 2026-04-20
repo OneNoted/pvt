@@ -52,10 +52,7 @@ func List(ctx context.Context, cfg *config.Config) ([]Entry, []string) {
 				errs = append(errs, fmt.Sprintf("%s/%s: backups: %v", cluster.Name, node.ProxmoxNode, err))
 				continue
 			}
-			for _, backup := range backups {
-				if !configuredVMIDs[backup.VMID] {
-					continue
-				}
+			for _, backup := range filterConfiguredBackups(backups, configuredVMIDs) {
 				entries = append(entries, Entry{Cluster: cluster.Name, BackupEntry: backup})
 			}
 		}
@@ -81,6 +78,16 @@ func vmIDsForCluster(cluster config.ClusterConfig) map[uint64]bool {
 		}
 	}
 	return vmIDs
+}
+
+func filterConfiguredBackups(backups []proxmox.BackupEntry, configuredVMIDs map[uint64]bool) []proxmox.BackupEntry {
+	filtered := make([]proxmox.BackupEntry, 0, len(backups))
+	for _, backup := range backups {
+		if configuredVMIDs[backup.VMID] {
+			filtered = append(filtered, backup)
+		}
+	}
+	return filtered
 }
 
 // Stale filters entries older than the given duration.
