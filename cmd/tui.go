@@ -24,7 +24,7 @@ func init() {
 func runTUI(cmd *cobra.Command, args []string) error {
 	binary, err := findVitui()
 	if err != nil {
-		return fmt.Errorf("vitui binary not found: %w\n\nInstall vitui by running: cd tui && zig build -Doptimize=ReleaseSafe", err)
+		return fmt.Errorf("vitui binary not found: %w\n\nBuild the Rust TUI by running: cd tui && cargo build --release", err)
 	}
 
 	// Build vitui args, forwarding the resolved config path
@@ -50,25 +50,38 @@ func runTUI(cmd *cobra.Command, args []string) error {
 
 // findVitui searches for the vitui binary in standard locations.
 func findVitui() (string, error) {
+	if override := os.Getenv("PVT_VITUI_BIN"); override != "" {
+		if _, err := os.Stat(override); err == nil {
+			return override, nil
+		}
+	}
+
 	// 1. Adjacent to the pvt binary
 	self, err := os.Executable()
+	selfDir := ""
 	if err == nil {
+		selfDir = filepath.Dir(self)
 		adjacent := filepath.Join(filepath.Dir(self), "vitui")
 		if _, err := os.Stat(adjacent); err == nil {
 			return adjacent, nil
 		}
 	}
 
-	// 2. In the tui/zig-out/bin/ directory relative to working dir
-	local := filepath.Join("tui", "zig-out", "bin", "vitui")
-	if _, err := os.Stat(local); err == nil {
-		return local, nil
+	// 2. In Rust cargo target directories relative to common roots
+	searchRoots := []string{"."}
+	if selfDir != "" {
+		searchRoots = append(searchRoots, selfDir, filepath.Dir(selfDir))
+	}
+	for _, root := range searchRoots {
+		for _, local := range []string{
+			filepath.Join(root, "tui", "target", "release", "vitui"),
+			filepath.Join(root, "tui", "target", "debug", "vitui"),
+		} {
+			if _, err := os.Stat(local); err == nil {
+				return local, nil
+			}
+		}
 	}
 
-	// 3. In $PATH
-	if p, err := exec.LookPath("vitui"); err == nil {
-		return p, nil
-	}
-
-	return "", fmt.Errorf("not in PATH, not adjacent to pvt binary, and not in tui/zig-out/bin/")
+	return "", fmt.Errorf("not adjacent to pvt binary and not in tui/target/{release,debug}; set PVT_VITUI_BIN to override")
 }

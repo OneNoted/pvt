@@ -10,6 +10,7 @@ import (
 
 	"github.com/OneNoted/pvt/internal/cluster"
 	"github.com/OneNoted/pvt/internal/config"
+	"github.com/OneNoted/pvt/internal/health"
 	"github.com/OneNoted/pvt/internal/talos"
 	"github.com/OneNoted/pvt/internal/ui"
 )
@@ -28,15 +29,35 @@ func init() {
 	upgradeCmd.Flags().Bool("force", false, "force upgrade even if pre-flight fails")
 	upgradeCmd.Flags().Bool("dry-run", false, "show upgrade plan without executing")
 	_ = upgradeCmd.MarkFlagRequired("image")
+
+	upgradePreflightCmd.Flags().String("image", "", "Talos installer image expected for the upgrade")
+	upgradePostflightCmd.Flags().String("image", "", "Talos installer image expected after the upgrade")
+	_ = upgradePreflightCmd.MarkFlagRequired("image")
+	_ = upgradePostflightCmd.MarkFlagRequired("image")
+	upgradeCmd.AddCommand(upgradePreflightCmd)
+	upgradeCmd.AddCommand(upgradePostflightCmd)
+}
+
+var upgradePreflightCmd = &cobra.Command{
+	Use:   "preflight [cluster-name]",
+	Short: "Report upgrade readiness before a rolling upgrade",
+	Args:  cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runUpgradeReport(cmd, args, false)
+	},
+}
+
+var upgradePostflightCmd = &cobra.Command{
+	Use:   "postflight [cluster-name]",
+	Short: "Report cluster state after a rolling upgrade",
+	Args:  cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runUpgradeReport(cmd, args, true)
+	},
 }
 
 func runUpgrade(cmd *cobra.Command, args []string) error {
-	cfgPath, err := config.Discover()
-	if err != nil {
-		return err
-	}
-
-	cfg, err := config.Load(cfgPath)
+	_, cfg, err := loadConfig()
 	if err != nil {
 		return err
 	}
@@ -70,8 +91,12 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 
 	// Pre-flight health check (skip if --force)
 	if !force && !dryRun {
-		fmt.Println("Running pre-flight health check...")
-		if err := tc.WaitHealthy(ctx, cpIPs, workerIPs, 30*time.Second); err != nil {
+		healthTimeout := clusterCfg.Upgrade.HealthCheckTimeout
+		if healthTimeout == 0 {
+			healthTimeout = 30 * time.Second
+		}
+		fmt.Printf("Running pre-flight health check (timeout: %s)...\n", healthTimeout)
+		if err := tc.WaitHealthy(ctx, cpIPs, workerIPs, healthTimeout); err != nil {
 			return fmt.Errorf("pre-flight health check failed (use --force to skip): %w", err)
 		}
 		fmt.Println()
@@ -242,4 +267,84 @@ func waitForNode(ctx context.Context, tc *talos.Client, nodeIP string, timeout t
 	}
 
 	return fmt.Errorf("node %s did not respond within %s", nodeIP, timeout)
+}
+
+func runUpgradeReport(cmd *cobra.Command, args []string, postflight bool) error {
+	cfgPath, cfg, err := loadConfig()
+	if err != nil {
+		return err
+	}
+	clusterCfg, err := resolveCluster(cfg, args)
+	if err != nil {
+		return err
+	}
+	image, _ := cmd.Flags().GetString("image")
+	expectedVersion := installerTag(image)
+
+	ctx, cancel := liveContext()
+	defer cancel()
+	snapshot := healthForUpgrade(ctx, cfgPath, cfg, clusterCfg.Name)
+	title := "Upgrade preflight"
+	if postflight {
+		title = "Upgrade postflight"
+	}
+	fmt.Printf("%s for %q\n", title, clusterCfg.Name)
+	fmt.Printf("Image: %s\n", image)
+	if expectedVersion != "" {
+		fmt.Printf("Expected Talos version: %s\n", expectedVersion)
+	}
+	fmt.Println()
+
+	tbl := ui.NewTable("Node", "Role", "VM", "Talos", "Status")
+	failed := false
+	for _, cluster := range snapshot.Clusters {
+		for _, node := range cluster.Nodes {
+			status, nodeFailed := upgradeReportNodeStatus(node, postflight, expectedVersion)
+			failed = failed || nodeFailed
+			ui.AddRow(tbl, node.Config.Name, node.Config.Role, node.VMStatus, node.TalosVersion, status)
+		}
+	}
+	tbl.Render(os.Stdout)
+
+	if postflight {
+		if failed {
+			return fmt.Errorf("upgrade postflight validation failed")
+		}
+		return nil
+	}
+	fmt.Println("Preflight is advisory. The upgrade command still performs its own health gate unless --force is used.")
+	return nil
+}
+
+func upgradeReportNodeStatus(node health.NodeSnapshot, postflight bool, expectedVersion string) (string, bool) {
+	if node.VMStatus != "" && node.VMStatus != "running" {
+		return "vm " + node.VMStatus, postflight
+	}
+	if node.TalosVersion == "" {
+		return "talos unavailable", postflight
+	}
+	if postflight && expectedVersion != "" && node.TalosVersion != expectedVersion {
+		return "version mismatch", true
+	}
+	return "ready", false
+}
+
+func healthForUpgrade(ctx context.Context, cfgPath string, cfg *config.Config, clusterName string) health.Snapshot {
+	filtered := *cfg
+	filtered.Clusters = nil
+	for _, cluster := range cfg.Clusters {
+		if cluster.Name == clusterName {
+			filtered.Clusters = append(filtered.Clusters, cluster)
+		}
+	}
+	return health.Gather(ctx, cfgPath, &filtered)
+}
+
+func installerTag(image string) string {
+	for i := len(image) - 1; i >= 0; i-- {
+		if image[i] == ':' {
+			return image[i+1:]
+		}
+	}
+	return ""
 }

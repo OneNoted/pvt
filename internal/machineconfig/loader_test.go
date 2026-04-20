@@ -74,3 +74,23 @@ func TestLoadMachineConfig_NotFound(t *testing.T) {
 		t.Fatal("LoadMachineConfig() expected error for missing file")
 	}
 }
+
+func TestDiffFilesNormalizesYAML(t *testing.T) {
+	dir := t.TempDir()
+	left := filepath.Join(dir, "left.yaml")
+	right := filepath.Join(dir, "right.yaml")
+	if err := os.WriteFile(left, []byte("machine:\n  type: worker\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(right, []byte("machine: {type: worker}\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, different, err := DiffFiles(left, right)
+	if err != nil {
+		t.Fatalf("DiffFiles() error = %v", err)
+	}
+	if different {
+		t.Fatal("DiffFiles() different = true, want false for equivalent YAML")
+	}
+}

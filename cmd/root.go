@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -33,19 +33,44 @@ func init() {
 func initConfig() {
 	if cfgFile != "" {
 		viper.SetConfigFile(cfgFile)
-	} else {
-		viper.SetConfigName("pvt")
-		viper.SetConfigType("yaml")
-		viper.AddConfigPath(".")
-
-		home, err := os.UserHomeDir()
-		if err == nil {
-			viper.AddConfigPath(fmt.Sprintf("%s/.config/pvt", home))
-		}
+	} else if discovered := discoverConfigFile(); discovered != "" {
+		viper.SetConfigFile(discovered)
 	}
 
 	viper.SetEnvPrefix("PVT")
 	viper.AutomaticEnv()
 
 	_ = viper.ReadInConfig()
+}
+
+func discoverConfigFile() string {
+	if env := os.Getenv("PVT_CONFIG"); env != "" {
+		if _, err := os.Stat(env); err == nil {
+			return env
+		}
+	}
+
+	if _, err := os.Stat("pvt.yaml"); err == nil {
+		if abs, err := filepath.Abs("pvt.yaml"); err == nil {
+			return abs
+		}
+		return "pvt.yaml"
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+
+	paths := []string{
+		filepath.Join(home, ".config", "pvt", "config.yaml"),
+		filepath.Join(home, ".config", "pvt", "pvt.yaml"),
+	}
+	for _, path := range paths {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	return ""
 }
