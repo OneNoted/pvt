@@ -5,6 +5,7 @@ use crate::models::{
     StoragePoolRow, VmDiskRow,
 };
 use crate::util::{age_days, format_bytes, format_epoch, format_rate, format_system_time};
+use std::cmp::Reverse;
 use std::collections::{BTreeSet, HashMap};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::thread::{self, JoinHandle};
@@ -157,6 +158,7 @@ pub fn refresh_snapshot(config: &Config, command_error: Option<String>) -> Snaps
         .collect::<HashMap<_, _>>();
 
     let mut configured_vmids = BTreeSet::new();
+    let mut configured_vmids_by_proxmox: HashMap<String, BTreeSet<i64>> = HashMap::new();
     let mut configured_names = BTreeSet::new();
     for managed_cluster in &config.clusters {
         let resources = vm_resources_by_cluster
@@ -170,6 +172,10 @@ pub fn refresh_snapshot(config: &Config, command_error: Option<String>) -> Snaps
 
         for node in &managed_cluster.nodes {
             configured_vmids.insert(node.proxmox_vmid);
+            configured_vmids_by_proxmox
+                .entry(managed_cluster.proxmox_cluster.clone())
+                .or_default()
+                .insert(node.proxmox_vmid);
             configured_names.insert(node.name.clone());
             let live_ip = discovered_node_ips
                 .get(&node.name)
@@ -265,6 +271,10 @@ pub fn refresh_snapshot(config: &Config, command_error: Option<String>) -> Snaps
             });
         }
         if let Some(storage) = storage_by_cluster.get(&cluster.name) {
+            let configured_backup_vmids = configured_vmids_by_proxmox
+                .get(&cluster.name)
+                .cloned()
+                .unwrap_or_default();
             for pool in storage {
                 let used = pool.disk.max(0);
                 let total = pool.maxdisk.max(0);
@@ -286,6 +296,9 @@ pub fn refresh_snapshot(config: &Config, command_error: Option<String>) -> Snaps
                 match proxmox::list_backups(cluster, &pool.node, &pool.name) {
                     Ok(backups) => {
                         for backup in backups {
+                            if !configured_backup_vmids.contains(&backup.vmid) {
+                                continue;
+                            }
                             let vm_name = resources
                                 .iter()
                                 .find(|resource| resource.vmid == backup.vmid)
@@ -406,8 +419,10 @@ pub fn refresh_snapshot(config: &Config, command_error: Option<String>) -> Snaps
     snapshot.storage_pools.sort_by(|a, b| a.name.cmp(&b.name));
     snapshot
         .vm_disks
-        .sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes));
-    snapshot.backups.sort_by(|a, b| b.age_days.cmp(&a.age_days));
+        .sort_by_key(|disk| Reverse(disk.size_bytes));
+    snapshot
+        .backups
+        .sort_by_key(|backup| Reverse(backup.age_days));
     snapshot
         .k8s_backups
         .sort_by(|a, b| a.namespace.cmp(&b.namespace).then(a.name.cmp(&b.name)));

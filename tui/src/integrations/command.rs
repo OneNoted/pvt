@@ -43,7 +43,7 @@ pub fn run_with_input(
     if !output.status.success() {
         bail!(
             "command failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim().to_string()
+            String::from_utf8_lossy(&output.stderr).trim()
         );
     }
     let mut stdout = output.stdout;

@@ -47,11 +47,55 @@ If your system installs helper binaries outside standard locations, you can also
 ```bash
 pvt config init            # generate starter config
 pvt config validate        # validate config syntax
+pvt doctor                 # diagnose local config, helper tools, and API access
 pvt status summary         # per-node cluster overview
+pvt drift                  # compare pvt.yaml with live Proxmox/Talos state
+pvt plan remediate         # print known remediation commands for drift
 pvt validate vms           # pre-flight VM checks
 pvt validate vm <name>     # check a single VM
+pvt backups stale          # list stale Proxmox backups
+pvt node reboot <name>     # plan a safe node reboot
+pvt machineconfig diff --against <dir> # normalized Talos machine config diff
 pvt bootstrap              # apply machine configs + bootstrap etcd
 pvt upgrade --image <img>  # rolling Talos upgrade across all nodes
+```
+
+### Doctor, Drift, and Plans
+
+`pvt doctor` checks config discovery, config parsing, helper binaries, Talos and
+Kubernetes config files, and Proxmox API reachability. `pvt drift` uses the same
+Go health snapshot engine as `pvt status summary` to surface VM, Talos, and
+validation drift. `pvt plan remediate` prints known fix commands, but does not
+apply them.
+
+```bash
+pvt doctor
+pvt drift
+pvt plan remediate
+```
+
+### Node Lifecycle
+
+Node lifecycle commands are plan-first. `drain` and `reboot` can be run with
+`--execute`; `add`, `replace`, and `remove` print the ordered operational plan
+for review.
+
+```bash
+pvt node drain worker-1
+pvt node reboot worker-1 --execute
+pvt node replace old-worker --replacement new-worker
+```
+
+### Backups
+
+The backups commands inspect Proxmox storage that supports backup content and
+only include backups whose VMID matches a node in `pvt.yaml`. Pruning is a dry
+run unless `--execute` is provided.
+
+```bash
+pvt backups list
+pvt backups stale --older-than-days 30
+pvt backups prune --older-than-days 30
 ```
 
 ### Bootstrap
@@ -72,6 +116,8 @@ Upgrades Talos on all nodes one at a time: workers first, then control plane nod
 
 ```bash
 pvt upgrade --image ghcr.io/siderolabs/installer:v1.12.5
+pvt upgrade preflight --image ghcr.io/siderolabs/installer:v1.12.5
+pvt upgrade postflight --image ghcr.io/siderolabs/installer:v1.12.5
 pvt upgrade --image <img> --dry-run    # preview upgrade plan
 pvt upgrade --image <img> --stage      # stage upgrade, reboot later
 pvt upgrade --image <img> --force      # skip pre-flight health check
@@ -131,6 +177,6 @@ Findings include the corresponding `qm set` fix command.
 - [x] Cluster status overview
 - [x] Bootstrap orchestration
 - [x] Rolling upgrades
-- [ ] Node lifecycle management
-- [ ] Drift detection
+- [x] Node lifecycle management
+- [x] Drift detection
 - [x] Rust Ratatui TUI dashboard
