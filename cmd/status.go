@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/OneNoted/pvt/internal/config"
+	"github.com/OneNoted/pvt/internal/health"
 	"github.com/OneNoted/pvt/internal/talos"
 	"github.com/OneNoted/pvt/internal/ui"
 )
@@ -32,49 +33,41 @@ func init() {
 }
 
 func runStatusSummary(cmd *cobra.Command, args []string) error {
-	cfgPath, err := config.Discover()
+	cfgPath, cfg, err := loadConfig()
 	if err != nil {
 		return err
 	}
 
-	cfg, err := config.Load(cfgPath)
-	if err != nil {
-		return err
-	}
-
-	ctx := context.Background()
-
-	for _, cluster := range cfg.Clusters {
+	ctx, cancel := liveContext()
+	defer cancel()
+	snapshot := health.Gather(ctx, cfgPath, cfg)
+	for _, cluster := range snapshot.Clusters {
 		fmt.Printf("Cluster: %s (%s)\n\n", cluster.Name, cluster.Endpoint)
+		tbl := ui.NewTable("Name", "Role", "IP", "PVE Node", "VMID", "Talos Version", "VM Status")
 
-		// Collect endpoints from node IPs for querying
-		var cpEndpoints []string
-		for _, n := range cluster.Nodes {
-			if n.Role == "controlplane" {
-				cpEndpoints = append(cpEndpoints, n.IP)
+		for _, node := range cluster.Nodes {
+			version := node.TalosVersion
+			if version == "" {
+				version = "unknown"
 			}
+			vmStatus := node.VMStatus
+			if vmStatus == "" {
+				vmStatus = "unknown"
+			}
+			ui.AddRow(tbl,
+				node.Config.Name,
+				node.Config.Role,
+				node.Config.IP,
+				node.Config.ProxmoxNode,
+				fmt.Sprintf("%d", node.Config.ProxmoxVMID),
+				version,
+				vmStatus,
+			)
 		}
-
-		if len(cpEndpoints) == 0 {
-			fmt.Println("  No control plane nodes configured")
-			continue
+		tbl.Render(os.Stdout)
+		for _, err := range cluster.Errors {
+			fmt.Fprintf(os.Stderr, "  Warning: %s\n", err)
 		}
-
-		tc, err := talos.NewClient(ctx, cfg.Talos.ConfigPath, cfg.Talos.Context, cpEndpoints)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "  Warning: could not connect to Talos API: %v\n", err)
-			printOfflineTable(cluster)
-			continue
-		}
-		defer tc.Close()
-
-		// Get all node IPs to query
-		var allNodes []string
-		for _, n := range cluster.Nodes {
-			allNodes = append(allNodes, n.IP)
-		}
-
-		printNodeTable(ctx, tc, cluster, allNodes)
 		fmt.Println()
 	}
 
